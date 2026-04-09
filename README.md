@@ -1,4 +1,4 @@
-# SentinelAI v3.0: The Action Firewall for Autonomous Agents 🛡️🤖
+# SentinelAI v3.0: The Action Firewall for Autonomous Agents 🛡️🤖[![SentinelAI CI](https://github.com/drowglak-lab/sentinelai-v3/actions/workflows/test.yml/badge.svg)](https://github.com/drowglak-lab/sentinelai-v3/actions/workflows/test.yml)
 
 **The High-Performance Security Layer for AI-Driven Banking Operations.**
 

@@ -7,3 +7,4 @@ pydantic-settings
 httpx
 pyyaml
 pytest
+aiosqlite

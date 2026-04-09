@@ -2,6 +2,9 @@ import uuid
 import json
 import asyncio
 
+# 💥 ИМПОРТИРУЕМ НАШ КРИПТО-АУДИТ
+from security.audit_chain import CryptographicAuditChain
+
 
 class TransactionManager:
     def __init__(self, db_conn):
@@ -30,6 +33,14 @@ class TransactionManager:
             # В ЭТОЙ ЖЕ ТРАНЗАКЦИИ пишем событие
             await self._append_outbox(intent_id, "AUTH_STARTED", {"amount": amount, "target": target})
 
+            # 💥 НОВОЕ: Намертво вшиваем операцию в криптографическую цепь
+            audit = CryptographicAuditChain(self.db)
+            await audit.append_record(
+                tx_id=intent_id,
+                action="INTENT_CREATED",
+                payload={"user": user_id, "amount": amount, "target": target}
+            )
+
             await self.db.commit()  # Фиксируем атомарно!
         except Exception as e:
             await self.db.execute("ROLLBACK")
@@ -55,6 +66,14 @@ class TransactionManager:
 
             await self.db.execute("UPDATE payment_intents SET status = ? WHERE id = ?", (new_status, intent_id))
             await self._append_outbox(intent_id, event_type, {"bank_ref": "REF-999"})
+
+            # 💥 НОВОЕ: Логируем результат в крипто-цепь
+            audit = CryptographicAuditChain(self.db)
+            await audit.append_record(
+                tx_id=intent_id,
+                action=event_type,
+                payload={"bank_ref": "REF-999", "final_status": new_status}
+            )
 
             await self.db.commit()
         except Exception as e:

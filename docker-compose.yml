@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  gateway:
+    build: 
+      context: .
+      dockerfile: Dockerfile.gateway
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - redis
+      - siem
+
+  siem:
+    build:
+      context: .
+      dockerfile: Dockerfile.siem
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./data:/app/data
+
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+
+networks:
+  default:
+    name: sentinel_network

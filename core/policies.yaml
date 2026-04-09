@@ -1,0 +1,20 @@
+version: "3.0"
+policies:
+  - id: "spanish_high_risk_block"
+    tool: "transfer_funds"
+    mode: "enforce"
+    condition:
+      and:
+        - atom: { attr_key: "country", operator: "eq", value: "ES" }
+        - or:
+            - atom: { attr_key: "amount", operator: "gt", value: 20000.0 }
+            - atom: { attr_key: "risk_score", operator: "gt", value: 0.8 }
+
+  # ⚡ НОВОЕ ПРАВИЛО: Опирается на данные из базы
+  - id: "hidden_kyc_block"
+    tool: "transfer_funds"
+    mode: "enforce"
+    condition:
+      and:
+        - atom: { attr_key: "kyc_status", operator: "eq", value: "pending" }
+        - atom: { attr_key: "amount", operator: "gt", value: 5000.0 }

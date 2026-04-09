@@ -1,0 +1,19 @@
+# Используем легкий Python
+FROM python:3.12-slim
+
+# Устанавливаем рабочую директорию
+WORKDIR /app
+
+# Копируем зависимости
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем код сервиса и публичный ключ (он нужен для проверки подписи)
+COPY siem_service.py .
+COPY core/public.pem ./core/public.pem
+
+# Открываем порт
+EXPOSE 9000
+
+# Запускаем
+CMD ["python", "siem_service.py"]

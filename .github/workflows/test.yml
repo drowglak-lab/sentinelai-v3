@@ -1,0 +1,37 @@
+name: SentinelAI CI
+
+# Запускать этот сценарий при каждом push и pull request в ветку main/master
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest # GitHub выделит чистую машину на Linux
+
+    steps:
+    # 1. Скачиваем твой код из репозитория
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. Устанавливаем нужную версию Python
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: 'pip' # Кэшируем пакеты для ускорения будущих сборок
+
+    # 3. Устанавливаем зависимости для тестов
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pyyaml pydantic pydantic-settings
+        # Если у тебя есть актуальный requirements.txt, можно раскомментировать строку ниже:
+        # pip install -r requirements.txt
+
+    # 4. Запускаем наши unit-тесты
+    - name: Run Policy Engine Tests
+      run: |
+        python -m pytest tests/

@@ -1,0 +1,17 @@
+version: "1.0.0"
+description: "Core Sentinel Access Policies"
+
+# Политики для конкретных действий (endpoints/actions)
+actions:
+  "transfer_funds":
+    allowed_roles: ["USER", "SERVICE", "ADMIN"]
+    limits:
+      max_amount_usd: 5000
+    restrictions:
+      blocked_prefixes: ["CRYPTO_", "DARK_", "MIXER_"]
+      require_mfa_over: 1000
+
+  "system_reboot":
+    allowed_roles: ["ADMIN"]
+    limits: {}
+    restrictions: {}

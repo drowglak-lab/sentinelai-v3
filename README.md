@@ -53,6 +53,18 @@ Designed with the **Digital Operational Resilience Act (DORA)** in mind:
 
 ---
 
+## 💳 Transactional Core & Financial Guarantees (Staff-Level Architecture)
+
+SentinelAI goes beyond simple API routing by implementing strict financial state management, ensuring zero data loss and preventing double-spend anomalies even under severe network degradation.
+
+* **Distributed Idempotency:** Implemented a robust idempotency layer using Redis with Smart Polling and Payload Hash validation. It strictly prevents race conditions and replay attacks during concurrent transaction requests.
+* **Auth/Capture State Machine:** Transitions financial operations through a rigorous state machine (`CREATED` -> `AUTHORIZING` -> `AUTHORIZED` / `FAILED`), ensuring atomicity of business operations.
+* **Transactional Outbox Pattern:** Solves the dual-write problem. Database updates (RocksDB/SQLite) and event publishing are bound within a single ACID transaction.
+* **Asynchronous Message Relay:** A decoupled background worker guarantees at-least-once delivery of transaction events to downstream consumers (Kafka simulators), completely isolating the critical path from external broker latency.
+* **End-to-End Traceability:** Injects and propagates `X-Correlation-ID` across the entire pipeline (FastAPI -> Policy Engine -> Rust Enforcer -> Event Log) for seamless incident investigation.
+
+---
+
 ## 📂 Tech Stack
 * **Language:** Python 3.12+ & **Rust** (Safety & Microsecond Speed).
 * **Frameworks:** FastAPI (Asynchronous Orchestration), Pydantic (Validation), Maturin (Rust-Python bridge).

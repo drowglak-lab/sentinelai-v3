@@ -54,6 +54,18 @@ Diseñado teniendo en cuenta la **Ley de Resiliencia Operativa Digital (DORA)**:
 
 ---
 
+## 💳 Núcleo Transaccional y Garantías Financieras (Arquitectura de Nivel Staff)
+
+SentinelAI va más allá del simple enrutamiento de APIs implementando una gestión estricta del estado financiero, garantizando cero pérdida de datos y previniendo anomalías de doble gasto (*double-spend*) incluso bajo una degradación severa de la red.
+
+* **Idempotencia Distribuida:** Implementación de una robusta capa de idempotencia utilizando Redis con *Smart Polling* y validación de *Payload Hash*. Previene estrictamente condiciones de carrera (*race conditions*) y ataques de repetición (*replay attacks*) durante peticiones de transacciones concurrentes.
+* **Máquina de Estados de Auth/Capture:** Transiciona las operaciones financieras a través de una rigurosa máquina de estados (`CREATED` -> `AUTHORIZING` -> `AUTHORIZED` / `FAILED`), asegurando la atomicidad de las operaciones de negocio.
+* **Patrón Transactional Outbox:** Resuelve el problema de la doble escritura (*dual-write problem*). Las actualizaciones de la base de datos (RocksDB/SQLite) y la publicación de eventos quedan unidas dentro de una única transacción ACID.
+* **Reenvío Asíncrono de Mensajes (Message Relay):** Un *worker* en segundo plano desacoplado garantiza la entrega "al menos una vez" (*at-least-once delivery*) de los eventos de transacción a los consumidores (simuladores de Kafka), aislando completamente el *critical path* de la latencia de brokers externos.
+* **Trazabilidad Extremo a Extremo:** Inyecta y propaga el `X-Correlation-ID` a través de todo el *pipeline* (FastAPI -> Policy Engine -> Rust Enforcer -> Event Log) para una investigación de incidentes sin fisuras.
+
+---
+
 ## 📂 Stack Tecnológico
 * **Lenguaje:** Python 3.12+ y **Rust** (Seguridad y velocidad de microsegundos).
 * **Frameworks:** FastAPI (Orquestación Asíncrona), Pydantic (Validación), Maturin (Puente Rust-Python).

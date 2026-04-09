@@ -30,7 +30,7 @@ async def init_db():
             )
         """)
 
-        # 💥 НОВАЯ ТАБЛИЦА: Доверенные получатели (White-list)
+        # Таблица: Доверенные получатели (White-list)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS approved_beneficiaries (
                 id TEXT PRIMARY KEY, 
@@ -41,6 +41,19 @@ async def init_db():
                 country_code TEXT DEFAULT 'ES'
             )
         """)
+
+        # 💥 НОВАЯ ТАБЛИЦА: Криптографический аудит (Hash Chain)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS audit_ledger (
+                seq_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tx_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                prev_hash TEXT NOT NULL,
+                current_hash TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         
         # Закидываем тестового получателя (UUID: 1111-2222-3333-4444)
         await db.execute("""
@@ -48,9 +61,9 @@ async def init_db():
             VALUES ('1111-2222-3333-4444', 'ADMIN', 'ES12345678901234567890', 10)
         """)
         await db.commit()
-    print("🗄️ [Database] Ledger and Compliance tables initialized")
+    print("🗄️ [Database] Ledger, Compliance, and Audit tables initialized")
 
 async def get_db_connection():
     db = await aiosqlite.connect(DB_PATH)
-    db.row_factory = aiosqlite.Row # Чтобы получать результаты как словари
+    db.row_factory = aiosqlite.Row 
     return db

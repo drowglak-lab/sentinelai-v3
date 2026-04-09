@@ -13,10 +13,11 @@ from execution.policy_engine import PolicyEngine
 
 from core.idempotency import FinTechIdempotencyMiddleware
 
-# 💥 ИМПОРТЫ ДЛЯ OUTBOX ПАТТЕРНА
+# 💥 ИМПОРТЫ ДЛЯ OUTBOX ПАТТЕРНА И ZERO-TRUST
 from core.database import init_db, get_db_connection
 from core.transaction import TransactionManager
 from core.relay import outbox_relay_worker
+from security.enforcer import DeterministicEnforcer
 
 
 # ==========================================
@@ -26,9 +27,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379"
     rocksdb_path: str = "/app/data/rocksdb"
 
-
 settings = Settings()
-
 
 class SystemMode(str, Enum):
     NORMAL = "NORMAL"
@@ -36,19 +35,17 @@ class SystemMode(str, Enum):
     READ_ONLY = "READ_ONLY"
     RAMP_UP = "RAMP_UP"
 
-
 class RecoveryState:
     def __init__(self):
         self.mode = SystemMode.NORMAL
         self.rate_limit = 1.0
-
 
 class TransferRequest(BaseModel):
     tx_id: str = Field(..., description="Уникальный ID транзакции")
     tx_hash: str = Field(..., description="Хэш данных для проверки в Rust")
     role: str = Field(default="USER", description="Роль инициатора")
     amount: float = Field(..., gt=0, description="Сумма перевода")
-    target: str = Field(..., description="Счет назначения")
+    target: str = Field(..., description="Счет назначения (теперь это должен быть UUID из белого списка)")
 
 
 # ==========================================
@@ -80,13 +77,13 @@ async def sync_with_redis(redis_client: async_redis.Redis, state: RecoveryState)
 # ==========================================
 shared_redis_client = async_redis.from_url(settings.redis_url, decode_responses=True)
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.core = SentinelCore(settings.rocksdb_path, settings.redis_url)
     app.state.redis = shared_redis_client
     app.state.recovery = RecoveryState()
-    app.state.policy_engine = PolicyEngine("config/policies.yaml")
+    # Оставляем PolicyEngine в памяти для других модулей, но убираем из критического пути платежей
+    app.state.policy_engine = PolicyEngine("config/policies.yaml") 
 
     # 💥 ИНИЦИАЛИЗАЦИЯ ФИНТЕХ-ЯДРА
     await init_db()
@@ -118,7 +115,6 @@ app.add_middleware(
     strict_mode=False
 )
 
-
 @app.middleware("http")
 async def security_gate(request: Request, call_next):
     if not hasattr(request.app.state, "recovery"):
@@ -146,52 +142,55 @@ async def security_gate(request: Request, call_next):
 def get_sentinel_core(request: Request) -> SentinelCore:
     return request.app.state.core
 
-
-def get_policy_engine(request: Request) -> PolicyEngine:
-    return request.app.state.policy_engine
-
-
 @app.post("/v1/banking/transfer")
 async def handle_transfer(
         req: TransferRequest,
-        request: Request,  # 💥 Добавили request для заголовков
-        core: SentinelCore = Depends(get_sentinel_core),
-        policy_engine: PolicyEngine = Depends(get_policy_engine)
+        request: Request,  
+        core: SentinelCore = Depends(get_sentinel_core)
 ):
     # 1. Извлекаем Correlation ID для трейсинга
     trace_id = request.headers.get("X-Correlation-ID", "unknown")
-
-    # 2. Проверка политик
-    is_allowed, reason = policy_engine.evaluate(
-        action="transfer_funds",
-        role=req.role,
-        context={"amount": req.amount, "target": req.target}
-    )
-    if not is_allowed:
-        return JSONResponse(status_code=403, content={"status": "error", "detail": "POLICY_DENIED", "reason": reason})
-
-    # 3. Аппаратная проверка Rust
-    is_valid = core.audit_and_verify(req.tx_id, req.tx_hash)
-    if not is_valid:
-        return JSONResponse(status_code=400, content={"status": "error", "detail": "INTEGRITY_MISMATCH"})
-
-    # 4. 💥 ФИНАНСОВАЯ ТРАНЗАКЦИЯ (Outbox Pattern)
     idem_key = request.headers.get("Idempotency-Key", req.tx_id)
 
     db_conn = await get_db_connection()
+    enforcer = DeterministicEnforcer(db_conn)
     tx_manager = TransactionManager(db_conn)
 
     try:
-        # Вся грязная работа с БД, локами и консистентностью скрыта внутри менеджера
+        # 2. 🛡️ ZERO-TRUST AI: Проверяем намерения, а не сырой payload
+        # Теперь req.target должен быть UUID из белого списка, а не IBAN!
+        is_safe, reason, safe_context = await enforcer.validate_transfer_intent(
+            user_id=req.role,
+            ai_payload={"amount": req.amount, "target_beneficiary_id": req.target}
+        )
+
+        if not is_safe:
+            return JSONResponse(
+                status_code=403, 
+                content={"status": "error", "detail": "SECURITY_INTERVENTION", "reason": reason}
+            )
+
+        # 3. ⚙️ Аппаратная проверка Rust (оставляем для защиты памяти/целостности)
+        is_valid = core.audit_and_verify(req.tx_id, req.tx_hash)
+        if not is_valid:
+            return JSONResponse(status_code=400, content={"status": "error", "detail": "INTEGRITY_MISMATCH"})
+
+        # 4. 💸 ФИНАНСОВАЯ ТРАНЗАКЦИЯ (Только с БЕЗОПАСНЫМ контекстом)
         payment_result = await tx_manager.authorize_transfer(
             idempotency_key=idem_key,
-            user_id=req.role,
-            amount=req.amount,
-            target=req.target
+            user_id=safe_context["user_id"],
+            amount=safe_context["amount"],
+            target=safe_context["target_iban"] # Берем НАСТОЯЩИЙ IBAN из БД
         )
     finally:
         await db_conn.close()  # Обязательно возвращаем коннект в пул
 
+    return {
+        "status": "success",
+        "trace_id": trace_id,
+        "payment": payment_result,
+        "engine": "DeterministicEnforcer + TransactionManager"
+    }
     return {
         "status": "success",
         "trace_id": trace_id,

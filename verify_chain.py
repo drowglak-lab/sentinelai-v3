@@ -66,4 +66,4 @@ def verify_audit_chain():
         print("⚠️ База данных или таблица audit_ledger не найдена.")
 
 if __name__ == "__main__":
-    verify_chain()
+    verify_audit_chain()

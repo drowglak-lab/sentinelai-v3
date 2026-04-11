@@ -1,109 +1,59 @@
-# SentinelAI v3.0: The Action Firewall for Autonomous Agents 🛡️🤖[![SentinelAI CI](https://github.com/drowglak-lab/sentinelai-v3/actions/workflows/test.yml/badge.svg)](https://github.com/drowglak-lab/sentinelai-v3/actions/workflows/test.yml)
+# SentinelAI v3.0: The Zero-Trust Action Firewall for Autonomous Agents 🛡️🤖
+[![SentinelAI CI](https://github.com/drowglak-lab/sentinelai-v3/actions/workflows/test.yml/badge.svg)](https://github.com/drowglak-lab/sentinelai-v3/actions/workflows/test.yml)
 
-**The High-Performance Security Layer for AI-Driven Banking Operations.**
+**The Production-Grade Security Layer for AI-Driven Financial Operations.**
 
-SentinelAI is an Enterprise-grade **Action Firewall** designed to bridge the gap between autonomous AI agents and strict financial security requirements. In an era where LLMs execute code and handle transactions, SentinelAI ensures every action is validated, anonymized, and cryptographically logged before it touches the core banking system.
-
-
-
----
-
-## 🏛️ The Three-Tier Zero-Trust Architecture
-
-SentinelAI v3.0 has evolved from a simple proxy into a distributed, fault-tolerant gateway operating on three distinct layers:
-
-1. **L2 - Business Logic (Dynamic Policy Engine):** * Reads declarative rules from `policies.yaml`.
-   * Evaluates ABAC (Attribute-Based Access Control) and RBAC rules dynamically via Pydantic schemas. 
-   * *Zero hardcode:* Security limits can be updated without recompiling or redeploying the service.
-2. **L1 - Control Plane (FastAPI + Redis):**
-   * Acts as the traffic orchestrator with strict Dependency Injection and Graceful Lifespan management.
-   * Connects to a Redis cluster to monitor system state. 
-   * Implements an **Adaptive Recovery Protocol (Ramp-Up)**, mitigating "Thundering Herd" attacks by slowly allowing traffic (e.g., 20% throughput) during system revival.
-3. **L0 - Data Plane & Enforcer (Rust + RocksDB):**
-   * A sub-15ms core engine written in Rust.
-   * Utilizes an embedded RocksDB instance as an immutable memory layer.
-   * **Autonomous Self-Defense:** If the Rust Enforcer detects a cryptographic mismatch between incoming data and the RocksDB log, it triggers an atomic, local `FAIL_SAFE` kill-switch, freezing the node instantly without waiting for human intervention.
-
-
+SentinelAI is an Enterprise-grade **Action Firewall** designed to bridge the critical "Semantic Gap" between autonomous AI agents and strict financial security boundaries. In an era where LLMs suffer from prompt injections and hallucinate payloads, SentinelAI ensures every execution intent is deterministically validated, stripped of AI-generated artifacts, and cryptographically audited before it touches the core banking ledger.
 
 ---
 
-## 🧪 The Engineering Journey & Experiments
+## 🏛️ The Zero-Trust Architecture (Staff-Level Design)
 
-Building SentinelAI was not a straight path. It was an iterative process of stress-testing, failing, and evolving. Here is the post-mortem of our architectural experiments:
+SentinelAI v3.0 evolved from a simple proxy into a distributed, fault-tolerant execution boundary. It completely distrusts the LLM, relying on a strict three-tier separation of concerns:
 
-* **Experiment 1: Overcoming the Python GIL**
-  * *Challenge:* Standard Python threading hit a "glass ceiling" during load testing (capped at ~280 RPS with heavy latency).
-  * *Solution:* We bypassed the Global Interpreter Lock (GIL) by utilizing PEP 734 concepts (Multiple Interpreters) and rewriting the heavy cryptographic evaluation in Rust via `pyo3`/`maturin`.
-* **Experiment 2: The Distributed Kill-Switch**
-  * *Challenge:* A compromised agent could flood the system before an admin could manually shut down the FastAPI server.
-  * *Solution:* Built a two-tier kill-switch. An external `admin_panel.py` broadcasts emergency states via Redis (L1). Simultaneously, the Rust core maintains an atomic boolean in memory (L0). If either trips, the system immediately returns `503 SYSTEM_FROZEN`.
-* **Experiment 3: Surviving the "AI Code Audit" (Enterprise Refactoring)**
-  * *Challenge:* Early versions relied on global variables, hardcoded security policies (`dict`), and lacked safe lifecycle management—classic prototyping technical debt.
-  * *Solution:* Conducted a massive Enterprise Refactoring. Implemented Dependency Injection (`Depends()`), replaced dictionaries with strict Pydantic `BaseModel` schemas for request validation, introduced `Enum` for state safety, and moved all configurations to `.env` using `pydantic-settings`.
+### 1. Deterministic Enforcement (Semantic Gap Protection)
+AI models dictate *intent*, never *execution parameters*.
+* **Strict Payload Mapping:** The LLM only operates with whitelisted UUIDs. The Enforcer securely maps these UUIDs to real, sanitized banking data (e.g., IBANs) from an isolated, trusted database.
+* **Prompt Injection Neutralization:** Even if an attacker compromises the LLM to alter the JSON payload (e.g., `"destination": "attacker_account"`), the Deterministic Enforcer drops the transaction with a `SEMANTIC_VIOLATION` before it reaches the transactional core.
 
----
+### 2. Policy-as-Code (Open Policy Agent Sidecar)
+Business logic is completely decoupled from the Python monolith.
+* **Rego v1 Policies:** Security thresholds, AML risk scores, and sanction lists are evaluated dynamically by an isolated **OPA (Open Policy Agent)** container.
+* **Resilient Circuit Breaker:** The Gateway integrates with OPA via a fail-safe Circuit Breaker. If the policy engine experiences network degradation, the system trips the breaker and defaults to `Deny-by-Default` (503 Service Unavailable), preventing bypass attacks.
 
-## ⚖️ Regulatory Compliance (EU DORA Ready)
-
-Designed with the **Digital Operational Resilience Act (DORA)** in mind:
-* **Integrity:** SHA-256 Merkle Chaining ensures audit data remains cryptographically tamper-proof.
-* **Recoverability:** Redis state-sync allows the gateway to gracefully resume the audit chain after system failures via controlled Ramp-Up phases.
-* **Performance:** High-frequency trading requirements are met by isolating the slow I/O operations from the Rust validation core.
+### 3. WORM-Compliant Cryptographic Audit Ledger
+Audits must survive a root-level system compromise.
+* **Cryptographic Hash Chain:** Every financial state transition (`INTENT_CREATED` -> `AUTH_APPROVED`) is permanently linked to the previous transaction using SHA-256 Merkle Chaining.
+* **Tamper-Evident:** If a malicious administrator alters a database record to hide a fraudulent transfer, the hash chain breaks instantly, failing the `verify_chain.py` cryptographic audit. Designed for strict SOC2 and PSD2 compliance.
 
 ---
 
-## 💳 Transactional Core & Financial Guarantees (Staff-Level Architecture)
+## 💳 Transactional Core & Financial Guarantees
 
-SentinelAI goes beyond simple API routing by implementing strict financial state management, ensuring zero data loss and preventing double-spend anomalies even under severe network degradation.
+SentinelAI goes beyond simple API routing by implementing strict financial state management, ensuring zero data loss and preventing double-spend anomalies under severe concurrency.
 
-* **Distributed Idempotency:** Implemented a robust idempotency layer using Redis with Smart Polling and Payload Hash validation. It strictly prevents race conditions and replay attacks during concurrent transaction requests.
-* **Auth/Capture State Machine:** Transitions financial operations through a rigorous state machine (`CREATED` -> `AUTHORIZING` -> `AUTHORIZED` / `FAILED`), ensuring atomicity of business operations.
-* **Transactional Outbox Pattern:** Solves the dual-write problem. Database updates (RocksDB/SQLite) and event publishing are bound within a single ACID transaction.
-* **Asynchronous Message Relay:** A decoupled background worker guarantees at-least-once delivery of transaction events to downstream consumers (Kafka simulators), completely isolating the critical path from external broker latency.
-* **End-to-End Traceability:** Injects and propagates `X-Correlation-ID` across the entire pipeline (FastAPI -> Policy Engine -> Rust Enforcer -> Event Log) for seamless incident investigation.
+* **Distributed Idempotency:** A Redis-backed idempotency layer strictly prevents race conditions and replay attacks during parallel transaction requests.
+* **ACID Boundaries & Locking:** Utilizes strict database row-locking (`FOR UPDATE`) to ensure state transitions are atomic.
+* **Transactional Outbox Pattern:** Solves the dual-write problem. Database updates (payment_intents) and event publishing (outbox_events) are bound within a single ACID transaction.
+* **Asynchronous Message Relay:** A decoupled background worker guarantees at-least-once delivery of transaction events to downstream consumers (Kafka simulators).
 
 ---
 
 ## 📂 Tech Stack
-* **Language:** Python 3.12+ & **Rust** (Safety & Microsecond Speed).
-* **Frameworks:** FastAPI (Asynchronous Orchestration), Pydantic (Validation), Maturin (Rust-Python bridge).
-* **Infrastructure:** Docker & Docker Compose, **Redis** (State Management), **RocksDB** (Embedded High-Speed Storage).
-* **Security:** RSA Signing, SHA-256 Chaining, ABAC/RBAC Policy Engine.
+* **Language:** Python 3.12+ & **Rust** (Safety & Microsecond Core Verification).
+* **Frameworks:** FastAPI (Asynchronous Orchestration), Pydantic (Validation).
+* **Security & Policy:** **Open Policy Agent (OPA)**, Rego v1, Circuit Breaker Pattern.
+* **Infrastructure:** Docker & Docker Compose, **Redis** (State Management), **SQLite/RocksDB** (Transactional Core & Embedded Fast-Storage).
 
 ---
 
 ## 🚀 Quick Start (Enterprise Deployment)
 
-The entire ecosystem is containerized for consistent deployment.
+The entire decoupled ecosystem is containerized for consistent deployment.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-repo/sentinel-ai.git
+git clone [https://github.com/your-repo/sentinel-ai.git](https://github.com/your-repo/sentinel-ai.git)
 
-# 2. Start the Secure Gateway, Redis, and SIEM Audit Service
+# 2. Start the Secure Gateway, OPA Policy Engine, Redis, and SIEM Audit Service
 docker-compose up --build
-```
-
-### 🎮 Live Demonstration: The Control Plane
-
-You can interact with the distributed Kill-Switch and Policy Engine in real-time using the included CLI Admin tool:
-
-```bash
-# Trigger an immediate global lockdown (returns 503 SYSTEM_FROZEN)
-python admin_panel.py FROZEN
-
-# Slowly revive the system, allowing only 20% of traffic (returns 429 for blocked requests)
-python admin_panel.py RAMP_UP 0.2
-
-# Return to full capacity
-python admin_panel.py NORMAL
-```
-
----
-
-## 👨‍💻 Developer
-**Aleksei** | *AI Software Engineer*
-Specializing in AI Execution Security, Distributed Systems, and High-Performance Backend Architecture.
-📍 Valencia, Spain (Ready for complex EU Fintech challenges).
-
